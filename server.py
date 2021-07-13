@@ -12,7 +12,7 @@ from time import sleep
 from flask_jwt_extended import * 
 import pigpio
 
-#camera = PiCamera()
+
 
 #DB_HOST = "192.168.0.15" # CLASS IP
 DB_HOST = "192.168.137.1" # HACKTHON IP
@@ -44,8 +44,8 @@ GPIO.setmode(GPIO.BCM)
 
 GPIO.setup(led_pin,GPIO.OUT)
 
-led_pwm = GPIO.PWM(led_pin,100)
-led_pwm.start(0)
+#led_pwm = GPIO.PWM(led_pin,100)
+#led_pwm.start(0)
 
 for n in led_digital_pin_list:
     GPIO.setup(n,GPIO.OUT)
@@ -122,7 +122,7 @@ def sqlExecute(sql):
     return row
 
 @app.route("/status")
-#@jwt_required()
+@jwt_required()
 def statusRoute():
     output = {
             "led":led_digital_pin_status_list,
@@ -159,7 +159,7 @@ def manipulate():
     return render_template('manipulate.html',videos=videos)
 
 @app.route("/videos")
-#@jwt_required()
+@jwt_required()
 def videosRoute():
     output = {
             "fileNameArr":getVideoFileNameList()
@@ -207,7 +207,7 @@ def ledRoute(number,status):
         if number == "7":
             allLedManipulate(user,False)
         else:
-            led_pwm.ChangeDutyCycle(0)
+            #led_pwm.ChangeDutyCycle(0)
             GPIO.output(cur_pin,GPIO.LOW)
             sqlExecute("insert into led(user_name,status,led_number) values('{}',0,{})".format(user["name"],cur_index+1))
             led_digital_pin_status_list[cur_index] = False
@@ -218,25 +218,23 @@ def ledRoute(number,status):
     return jsonify(output)
 
 @app.route('/servo/<status>')
-#@jwt_required()
+@jwt_required()
 def servoRoute(status):
     global led_digital_pin_status_list,servoStatus
- #   user = get_jwt_identity()
+    user = get_jwt_identity()
     print("SERVO STATUS : {}".format(status))
     if status == "true":
-        pi.set_servo_pulsewidth(servo_pin,2300)
+        pi.set_servo_pulsewidth(servo_pin,2500)
   #      servo_pwm.ChangeDutyCycle(setAngle(90)) 
         #time.sleep(1)
-  #      sqlExecute("insert into servo(user_name,status) values('{}',1)".format(user["name"]))
+        sqlExecute("insert into servo(user_name,status) values('{}',1)".format(user["name"]))
         servoStatus = True
     else:
         pi.set_servo_pulsewidth(servo_pin,500)
        # servo_pwm.ChangeDutyCycle(setAngle(0))
        # time.sleep(1)
-     #   sqlExecute("insert into servo(user_name,status) values('{}',0)".format(user["name"]))
+        sqlExecute("insert into servo(user_name,status) values('{}',0)".format(user["name"]))
         servoStatus = False
-    if status == "stop":
-        pi.stop()
     output = {
             "led":led_digital_pin_status_list,
             "servo":servoStatus,
@@ -264,8 +262,6 @@ def execute():
 def signupRoute():
     name = request.json["name"]
     password = request.json["password"]
-    sql = "select * from users where name='{}' and password='{}'".format(name,password)
-
     sql = "insert into users(name,password) values('{}','{}')".format(name,password)
     print(sql)
     db_class = Database()
@@ -321,6 +317,7 @@ def jwt_test():
     return jsonify(user=user),200
 
 @app.route("/history")
+@jwt_required()
 def history(): 
 
     led = sqlExecute("select * from led order by id desc")
@@ -335,6 +332,7 @@ def history():
     return jsonify(output)
             
 @app.route("/admin/<id>",methods=["DELETE"])
+@jwt_required()
 def d_admin(id):
     sqlExecute("update users set isAdmin=0 where id = {}".format(id))
 
@@ -349,6 +347,7 @@ def d_admin(id):
 
 
 @app.route("/admin",methods=["POST","GET"])
+@jwt_required()
 def admin():
     if request.method == "POST":
         user_id = request.json["user_id"]
@@ -400,10 +399,12 @@ def speackServo():
             })
     
     if status == "off":
+        pi.set_servo_pulsewidth(servo_pin,500)
         #servo_pwm.ChangeDutyCycle(2.5)
         servoStatus = False
     else:
-       # servo_pwm.ChangeDutyCycle(12.5) 
+        pi.set_servo_pulsewidth(servo_pin,2500)
+        #servo_pwm.ChangeDutyCycle(12.5) 
         servoStatus = True
 
     
@@ -418,10 +419,14 @@ def speackServo():
     return jsonify(output)
 import datetime
 
+
+#camera = PiCamera()
+#camera.close()
 isRecordingVideo = False
 
 def recordingVideo():
     global isRecordingVideo
+    camera = PiCamera()
     camera.start_preview()
     fileName = datetime.datetime.now()
     camera.capture("./static/images/{}.jpg".format(fileName)) # take a picture
@@ -431,6 +436,7 @@ def recordingVideo():
     camera.stop_recording()
     camera.stop_preview()
 
+    camera.close()
     isRecordingVideo = False
 
 def sensorFunction():
@@ -438,7 +444,7 @@ def sensorFunction():
     while True:
         
         distance = sensor.distance * 100
-        channels = []
+        #channels = []
 
         if distance <= 6:
             GPIO.output(dis_led_pin,GPIO.HIGH)
@@ -449,22 +455,21 @@ def sensorFunction():
             GPIO.output(dis_led_pin,GPIO.LOW)
 
 
-        for n in range(0, 8):
-            data = mcp3208.readadc(n)
-            channels.insert(n, data)
-        for n in range(0, 8):
-            print("| ch " + str(n+1) + ": " + str(channels[n])+"\t",end="")
-            if n==2: #3th pin
-                value = map(channels[n],0,8000,0,100)
+        #for n in range(0, 8):
+        #    data = mcp3208.readadc(n)
+        #    channels.insert(n, data)
+        #for n in range(0, 8):
+        #    print("| ch " + str(n+1) + ": " + str(channels[n])+"\t",end="")
+        #    if n==2: #3th pin
+        #        value = map(channels[n],0,8000,0,100)
         print("DISTANCE VALUE : ",distance,end="")
         
-       #servo_pwm.ChangeDutyCycle(value)
         print("")
         time.sleep(0.2)
 
-#threading.Thread(target=sensorFunction).start()
 
 if __name__ == '__main__':
-
-    #servo_pwm.ChangeDutyCycle(setAngle(2))
+    
+    threading.Thread(target=sensorFunction).start()
     app.run(debug=True, port=SERVER_PORT, host=SERVER_HOST)
+
